@@ -1,0 +1,271 @@
+# Deque и Очередь с минимумом — краткое руководство
+
+> Готовый README.md для гита: определения, операции, асимптотики и две реализации на C++  
+> (дек: двусвязный список и кольцевой динамический массив; очередь с минимумом: монотонный дек)
+
+---
+
+## Содержание
+- [Что такое deque](#что-такое-deque)
+- [Операции и асимптотики](#операции-и-асимптотики)
+- [Реализация deque №1 — двусвязный список](#реализация-deque-№1--двусвязный-список)
+- [Реализация deque №2 — кольцевой динамический массив](#реализация-deque-№2--кольцевой-динамический-массив)
+- [Что такое очередь с минимумом](#что-такое-очередь-с-минимумом)
+- [Реализация очереди с минимумом (монотонный дек)](#реализация-очереди-с-минимумом-монотонный-дек)
+- [Тест-примеры](#тест-примеры)
+- [Замечания и подводные камни](#замечания-и-подводные-камни)
+
+---
+
+## Что такое deque
+
+**Deque** (*double-ended queue*, двусторонняя очередь) — структура данных, позволяющая:
+- добавлять/удалять элементы **как в начале**, так и **в конце**,
+- все базовые операции — за **O(1)** амортизированно.
+
+Идеально ложится на:
+- **двусвязный список** (естественные операции с обоих концов),
+- **кольцевой буфер** (массив) с динамическим расширением в 2 раза.
+
+---
+
+## Операции и асимптотики
+
+| Операция            | Описание                               | Время   | Память |
+|---------------------|-----------------------------------------|---------|--------|
+| `push_front(x)`     | вставить в начало                      | O(1)    | O(1)   |
+| `push_back(x)`      | вставить в конец                       | O(1)    | O(1)   |
+| `pop_front()`       | удалить из начала                      | O(1)    | O(1)   |
+| `pop_back()`        | удалить из конца                       | O(1)    | O(1)   |
+| `front()` / `back()`| посмотреть первый / последний элемент  | O(1)    | O(1)   |
+| `empty()` / `size()`| проверка пустоты / размер              | O(1)    | O(1)   |
+
+> Для **массивной** реализации O(1) — **амортизированно** из-за редких расширений буфера.
+
+---
+
+## Реализация deque №1 — двусвязный список
+
+```cpp
+// Deque (двусторонняя очередь) на двусвязном списке
+#include <iostream>
+#include <stdexcept>
+
+struct Node {
+    int val;
+    Node* prev;
+    Node* next;
+    Node(int v) : val(v), prev(nullptr), next(nullptr) {}
+};
+
+class DequeList {
+    Node* head = nullptr; // фронт
+    Node* tail = nullptr; // хвост
+    size_t cnt = 0;
+
+public:
+    ~DequeList() { while (!empty()) pop_front(); }
+
+    bool empty() const { return cnt == 0; }
+    size_t size() const { return cnt; }
+
+    void push_front(int x) {
+        Node* n = new Node(x);
+        n->next = head;
+        if (head) head->prev = n; else tail = n;
+        head = n;
+        ++cnt;
+    }
+
+    void push_back(int x) {
+        Node* n = new Node(x);
+        n->prev = tail;
+        if (tail) tail->next = n; else head = n;
+        tail = n;
+        ++cnt;
+    }
+
+    void pop_front() {
+        if (empty()) return;
+        Node* t = head;
+        head = head->next;
+        if (head) head->prev = nullptr; else tail = nullptr;
+        delete t;
+        --cnt;
+    }
+
+    void pop_back() {
+        if (empty()) return;
+        Node* t = tail;
+        tail = tail->prev;
+        if (tail) tail->next = nullptr; else head = nullptr;
+        delete t;
+        --cnt;
+    }
+
+    int front() const {
+        if (empty()) throw std::runtime_error("deque is empty");
+        return head->val;
+    }
+
+    int back() const {
+        if (empty()) throw std::runtime_error("deque is empty");
+        return tail->val;
+    }
+};
+```
+
+---
+
+## Реализация deque №2 — кольцевой динамический массив
+
+```cpp
+// Deque на кольцевом динамическом массиве
+#include <vector>
+#include <stdexcept>
+#include <algorithm>
+
+class DequeArray {
+    std::vector<int> buf;
+    size_t head = 0;    // индекс первого элемента
+    size_t tail = 0;    // индекс СЛЕДУЮЩЕЙ ячейки после последнего
+    size_t cnt  = 0;
+
+    void ensure_capacity() {
+        if (cnt < buf.size()) return;
+        size_t oldCap = std::max<size_t>(1, buf.size());
+        size_t newCap = oldCap * 2;
+        std::vector<int> nb(newCap);
+        for (size_t i = 0; i < cnt; ++i)
+            nb[i] = buf[(head + i) % oldCap];
+        buf.swap(nb);
+        head = 0;
+        tail = cnt;
+    }
+
+public:
+    DequeArray(size_t cap = 0) : buf(cap ? cap : 1) {}
+
+    bool empty() const { return cnt == 0; }
+    size_t size() const { return cnt; }
+
+    void push_front(int x) {
+        ensure_capacity();
+        head = (head + buf.size() - 1) % buf.size();
+        buf[head] = x;
+        ++cnt;
+    }
+
+    void push_back(int x) {
+        ensure_capacity();
+        buf[tail] = x;
+        tail = (tail + 1) % buf.size();
+        ++cnt;
+    }
+
+    void pop_front() {
+        if (empty()) return;
+        head = (head + 1) % buf.size();
+        --cnt;
+    }
+
+    void pop_back() {
+        if (empty()) return;
+        tail = (tail + buf.size() - 1) % buf.size();
+        --cnt;
+    }
+
+    int front() const {
+        if (empty()) throw std::runtime_error("deque is empty");
+        return buf[head];
+    }
+
+    int back() const {
+        if (empty()) throw std::runtime_error("deque is empty");
+        return buf[(tail + buf.size() - 1) % buf.size()];
+    }
+};
+```
+
+---
+
+## Что такое очередь с минимумом
+
+**Очередь с минимумом (min-queue)** — это очередь FIFO с дополнительной операцией `get_min()`,
+которая возвращает **минимальный элемент** за O(1).
+
+Идея: поддерживать вспомогательный **монотонный дек** (неубывающий).
+
+```cpp
+#include <deque>
+#include <stdexcept>
+
+class MinQueue {
+    std::deque<int> q;           
+    std::deque<std::pair<int,int>> mono; 
+
+public:
+    bool empty() const { return q.empty(); }
+    size_t size() const { return q.size(); }
+
+    void push(int x) {
+        q.push_back(x);
+        int cnt = 1;
+        while (!mono.empty() && mono.back().first > x) {
+            cnt += mono.back().second;
+            mono.pop_back();
+        }
+        mono.emplace_back(x, cnt);
+    }
+
+    void pop() {
+        if (q.empty()) return;
+        int x = q.front();
+        q.pop_front();
+        if (!mono.empty() && mono.front().first == x) {
+            if (--mono.front().second == 0) mono.pop_front();
+        }
+    }
+
+    int get_min() const {
+        if (q.empty()) throw std::runtime_error("queue is empty");
+        return mono.front().first;
+    }
+};
+```
+
+---
+
+## Тест-примеры
+
+```cpp
+#include <iostream>
+int main() {
+    DequeList d1;
+    d1.push_back(2);
+    d1.push_front(1);
+    d1.push_back(3);
+    std::cout << d1.front() << " " << d1.back() << " size=" << d1.size() << "\n";
+    d1.pop_front();
+    d1.pop_back();
+    std::cout << d1.front() << "\n";
+
+    MinQueue mq;
+    mq.push(3);
+    mq.push(1);
+    mq.push(5);
+    mq.push(2);
+    std::cout << "min=" << mq.get_min() << "\n";
+    mq.pop();
+    mq.pop();
+    std::cout << "min=" << mq.get_min() << "\n";
+}
+```
+
+---
+
+## Замечания и подводные камни
+
+- Дек на массиве требует аккуратного пересчета индексов при расширении.
+- Для монотонной очереди важно: каждый элемент удаляется и добавляется не более одного раза ⇒ амортизированное O(1).
+- В задачах скользящего окна полезнее хранить **индексы** в моно-деке, а не значения.
