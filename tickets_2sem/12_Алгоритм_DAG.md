@@ -59,9 +59,9 @@ bool dag_alg(int n
         for (const auto& e : adj[v]) {
             int u = e.first;
             long long w = e.second;
-            if (dist[v] > dist[u] + w) {
-                dist[v] = dist[u] + w;
-                parent[v] = u;
+            if (dist[u] > dist[v] + w) {
+                dist[u] = dist[v] + w;
+                parent[u] = v;
             }
         }
     }
